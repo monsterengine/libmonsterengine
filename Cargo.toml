@@ -6,3 +6,4 @@ authors = ["Shogo Otake <shogo.otake@gmail.com>"]
 [dependencies]
 tokio = "0.1.6"
 hyper = "0.11.25"
+plamo = { path = "../plamo-rs" }
