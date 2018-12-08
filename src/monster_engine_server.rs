@@ -1,4 +1,4 @@
-use hyper::{Body, Request, Response, Server};
+use hyper::{Body, Request, Response, Server, Version};
 use hyper::service::service_fn_ok;
 use hyper::rt::{self, Future};
 use monster_engine_config::MonsterEngineConfig;
@@ -37,7 +37,12 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
             let monster_engine_server_wrapper = Arc::clone(&monster_engine_server_wrapper);
             service_fn_ok(move |request: Request<Body>| {
                 let path = CString::new(request.uri().path()).unwrap();
-                let version = CString::new("1.1").unwrap();
+                let version = match request.version() {
+                    Version::HTTP_09 => CString::new("0.9").unwrap(),
+                    Version::HTTP_10 => CString::new("1.0").unwrap(),
+                    Version::HTTP_11 => CString::new("1.1").unwrap(),
+                    Version::HTTP_2 => CString::new("2.0").unwrap(),
+                };
                 let plamo_byte_array = unsafe { plamo_byte_array_new(std::ptr::null(), 0) };
                 let plamo_request = unsafe { plamo_request_new(PlamoHttpMethod::Get, PlamoScheme::Http, path.as_ptr(), version.as_ptr(), plamo_byte_array) };
                 let monster_engine_server_ptr = unsafe { (*monster_engine_server_wrapper).0.as_ref() };
