@@ -2,7 +2,7 @@ use hyper::{Body, Request, Response, Server, Version};
 use hyper::service::service_fn;
 use hyper::rt::{self, Future, Stream};
 use monster_engine_config::MonsterEngineConfig;
-use plamo::{PlamoApp, plamo_app_execute, PlamoHttpMethod, PlamoScheme, plamo_request_new, plamo_byte_array_new, plamo_byte_array_get_body_size, plamo_byte_array_get_body};
+use plamo::{PlamoApp, plamo_app_execute, PlamoScheme, plamo_request_new, plamo_byte_array_new, plamo_byte_array_get_body_size, plamo_byte_array_get_body};
 use std::ffi::CString;
 use std::ptr::NonNull;
 use std::slice;
@@ -46,9 +46,10 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
 
                 let monster_engine_server_wrapper = Arc::clone(&monster_engine_server_wrapper);
 
+                let plamo_http_method = CString::new(request.method().as_str()).unwrap();
                 let fut = request.into_body().concat2().and_then(move |body|{
                     let plamo_byte_array = unsafe { plamo_byte_array_new(body.as_ptr(), body.len()) };
-                    let plamo_request = unsafe { plamo_request_new(PlamoHttpMethod::Get, PlamoScheme::Http, path.as_ptr(), version.as_ptr(), plamo_byte_array) };
+                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), PlamoScheme::Http, path.as_ptr(), version.as_ptr(), plamo_byte_array) };
                     let monster_engine_server_ref = unsafe { (*monster_engine_server_wrapper).0.as_ref() };
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server_ref.app, plamo_request) };
                     Ok(
