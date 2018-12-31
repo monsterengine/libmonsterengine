@@ -3,7 +3,7 @@ use hyper::http::uri::Scheme;
 use hyper::service::service_fn;
 use hyper::rt::{self, Future, Stream};
 use monster_engine_config::MonsterEngineConfig;
-use plamo::{PlamoApp, plamo_app_execute, PlamoScheme, PlamoHttpVersion, plamo_request_new, plamo_byte_array_new, plamo_byte_array_get_body_size, plamo_byte_array_get_body};
+use plamo::{PlamoApp, plamo_app_execute, PlamoScheme, PlamoHttpVersion, plamo_request_new, plamo_byte_array_new, plamo_byte_array_get_body_size, plamo_byte_array_get_body, plamo_http_query_new, plamo_http_query_add};
 use std::ffi::CString;
 use std::ptr::NonNull;
 use std::slice;
@@ -37,7 +37,8 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
         .serve(move || {
             let monster_engine_server_wrapper = Arc::clone(&monster_engine_server_wrapper);
             service_fn(move |request: Request<Body>| {
-                let scheme = request.uri().scheme_part().map_or(PlamoScheme::Http, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::Http } else { PlamoScheme::Https });
+                let uri = request.uri().clone();
+                let scheme = uri.scheme_part().map_or(PlamoScheme::Http, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::Http } else { PlamoScheme::Https });
                 let path = CString::new(request.uri().path()).unwrap();
                 let version = match request.version() {
                     Version::HTTP_2 => PlamoHttpVersion::Http20,
@@ -51,7 +52,20 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                 let plamo_http_method = CString::new(request.method().as_str()).unwrap();
                 let fut = request.into_body().concat2().and_then(move |body|{
                     let plamo_byte_array = unsafe { plamo_byte_array_new(body.as_ptr(), body.len()) };
-                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_byte_array) };
+                    let plamo_http_query = unsafe { plamo_http_query_new() };
+                    uri.query().map(|query| {
+                        query.split("&").for_each(|query| {
+                            let key_value: Vec<&str> = query.split("=").collect();
+                            let key = CString::new(key_value[0]).unwrap();
+                            if key_value.len() == 2 {
+                                let value = CString::new(key_value[1]).unwrap();
+                                unsafe { plamo_http_query_add(plamo_http_query, key.as_ptr(), value.as_ptr()); }
+                            } else {
+                                unsafe { plamo_http_query_add(plamo_http_query, key.as_ptr(), std::ptr::null()); }
+                            }
+                        });
+                    });
+                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_http_query, plamo_byte_array) };
                     let monster_engine_server_ref = unsafe { (*monster_engine_server_wrapper).0.as_ref() };
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server_ref.app, plamo_request) };
                     Ok(
