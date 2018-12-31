@@ -1,9 +1,10 @@
 use crate::monster_engine_config::MonsterEngineConfig;
 use hyper::{Body, Request, Response, Server, Version};
+use hyper::header::{HeaderMap, HeaderValue};
 use hyper::http::uri::Scheme;
 use hyper::service::service_fn;
 use hyper::rt::{self, Future, Stream};
-use plamo::{PlamoApp, plamo_app_execute, PlamoScheme, PlamoHttpVersion, plamo_request_new, plamo_byte_array_new, plamo_byte_array_get_body_size, plamo_byte_array_get_body, plamo_http_query_new, PlamoHttpQuery, plamo_http_query_add};
+use plamo::*;
 use std::ffi::CString;
 use std::ptr::NonNull;
 use std::slice;
@@ -40,6 +41,7 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                 let uri = request.uri().clone();
                 let scheme = uri.scheme_part().map_or(PlamoScheme::Http, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::Http } else { PlamoScheme::Https });
                 let path = CString::new(request.uri().path()).unwrap();
+                let headers = request.headers().clone();
                 let version = match request.version() {
                     Version::HTTP_2 => PlamoHttpVersion::Http20,
                     Version::HTTP_11 => PlamoHttpVersion::Http11,
@@ -53,7 +55,8 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                 let fut = request.into_body().concat2().and_then(move |body|{
                     let plamo_byte_array = unsafe { plamo_byte_array_new(body.as_ptr(), body.len()) };
                     let plamo_http_query = query(uri.query());
-                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_http_query, plamo_byte_array) };
+                    let plamo_http_header = header(&headers);
+                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_http_query, plamo_http_header, plamo_byte_array) };
                     let monster_engine_server_ref = unsafe { (*monster_engine_server_wrapper).0.as_ref() };
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server_ref.app, plamo_request) };
                     Ok(
@@ -87,4 +90,14 @@ fn query(query: Option<&str>) -> *mut PlamoHttpQuery {
         });
     });
     plamo_http_query
+}
+
+fn header(header: &HeaderMap<HeaderValue>) -> *mut PlamoHttpHeader {
+    let plamo_http_header = unsafe { plamo_http_header_new() };
+    header.iter().for_each(|(key, value)| {
+        let key = CString::new(key.to_string()).unwrap();
+        let value = CString::new(value.to_str().unwrap()).unwrap();
+        unsafe { plamo_http_header_add(plamo_http_header, key.as_ptr(), value.as_ptr()); }
+    });
+    plamo_http_header
 }
