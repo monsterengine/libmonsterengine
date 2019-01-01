@@ -61,7 +61,7 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server_ref.app, plamo_request) };
                     Ok(
                         Response::builder()
-                            .status(200)
+                            .status(unsafe { (*plamo_response).status_code as u16 })
                             .body(Body::from(unsafe { slice::from_raw_parts(plamo_byte_array_get_body((*plamo_response).body), plamo_byte_array_get_body_size((*plamo_response).body)) }))
                             .unwrap()
                     )
