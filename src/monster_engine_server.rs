@@ -95,7 +95,7 @@ fn query(query: Option<&str>) -> *mut PlamoHttpQuery {
 fn header(header: &HeaderMap<HeaderValue>) -> *mut PlamoHttpHeader {
     let plamo_http_header = unsafe { plamo_http_header_new() };
     header.iter().for_each(|(key, value)| {
-        let key = CString::new(key.to_string()).unwrap();
+        let key = CString::new(key.as_str()).unwrap();
         let value = CString::new(value.to_str().unwrap()).unwrap();
         unsafe { plamo_http_header_add(plamo_http_header, key.as_ptr(), value.as_ptr()); }
     });
