@@ -10,33 +10,22 @@ use std::ptr::NonNull;
 use std::slice;
 use std::sync::Arc;
 
-#[repr(C)]
-pub struct MonsterEngineServer {
-    app: *const PlamoApp,
-    config: *const MonsterEngineConfig,
+struct MonsterEngineServer {
+    app: NonNull<PlamoApp>,
+    config: NonNull<MonsterEngineConfig>,
 }
 
-struct MonsterEngineServerWrapper(NonNull<MonsterEngineServer>);
-
-unsafe impl Send for MonsterEngineServerWrapper {}
-unsafe impl Sync for MonsterEngineServerWrapper {}
+unsafe impl Send for MonsterEngineServer {}
+unsafe impl Sync for MonsterEngineServer {}
 
 #[no_mangle]
-pub extern fn monster_engine_server_new(app: *const PlamoApp, config: *const MonsterEngineConfig) -> *mut MonsterEngineServer {
-    Box::into_raw(Box::new(MonsterEngineServer {
-        app: app,
-        config: config,
-    }))
-}
-
-#[no_mangle]
-pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEngineServer) {
-    let addr = unsafe { (*(*monster_engine_server).config).bind.to_str().unwrap().parse().unwrap() };
-    let monster_engine_server_wrapper = Arc::new(MonsterEngineServerWrapper(NonNull::new(monster_engine_server).unwrap()));
+pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut MonsterEngineConfig) {
+    let monster_engine_server = Arc::new(MonsterEngineServer { app: NonNull::new(app).unwrap(), config: NonNull::new(config).unwrap() });
+    let addr = unsafe { (monster_engine_server.config.as_ref()).bind.to_str().unwrap().parse().unwrap() };
 
     let server = Server::bind(&addr)
         .serve(move || {
-            let monster_engine_server_wrapper = Arc::clone(&monster_engine_server_wrapper);
+            let monster_engine_server = Arc::clone(&monster_engine_server);
             service_fn(move |request: Request<Body>| {
                 let uri = request.uri().clone();
                 let scheme = uri.scheme_part().map_or(PlamoScheme::Http, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::Http } else { PlamoScheme::Https });
@@ -49,7 +38,7 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                     Version::HTTP_09 => PlamoHttpVersion::Http09,
                 };
 
-                let monster_engine_server_wrapper = Arc::clone(&monster_engine_server_wrapper);
+                let monster_engine_server = Arc::clone(&monster_engine_server);
 
                 let plamo_http_method = CString::new(request.method().as_str()).unwrap();
                 let fut = request.into_body().concat2().and_then(move |body|{
@@ -57,8 +46,7 @@ pub extern fn monster_engine_server_start(monster_engine_server: *mut MonsterEng
                     let plamo_http_query = query(uri.query());
                     let plamo_http_header = header(&headers);
                     let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_http_query, plamo_http_header, plamo_byte_array) };
-                    let monster_engine_server_ref = unsafe { (*monster_engine_server_wrapper).0.as_ref() };
-                    let plamo_response = unsafe { plamo_app_execute(monster_engine_server_ref.app, plamo_request) };
+                    let plamo_response = unsafe { plamo_app_execute(monster_engine_server.app.as_ref(), plamo_request) };
                     Ok(
                         Response::builder()
                             .status(unsafe { (*plamo_response).status_code as u16 })
