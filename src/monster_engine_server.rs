@@ -28,14 +28,14 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
             let monster_engine_server = Arc::clone(&monster_engine_server);
             service_fn(move |request: Request<Body>| {
                 let uri = request.uri().clone();
-                let scheme = uri.scheme_part().map_or(PlamoScheme::Http, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::Http } else { PlamoScheme::Https });
+                let scheme = uri.scheme_part().map_or(PlamoScheme::PlamoSchemeHttp, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::PlamoSchemeHttp } else { PlamoScheme::PlamoSchemeHttps });
                 let path = CString::new(request.uri().path()).unwrap();
                 let headers = request.headers().clone();
                 let version = match request.version() {
-                    Version::HTTP_2 => PlamoHttpVersion::Http20,
-                    Version::HTTP_11 => PlamoHttpVersion::Http11,
-                    Version::HTTP_10 => PlamoHttpVersion::Http10,
-                    Version::HTTP_09 => PlamoHttpVersion::Http09,
+                    Version::HTTP_2 => PlamoHttpVersion::PlamoHttpVersionHttp20,
+                    Version::HTTP_11 => PlamoHttpVersion::PlamoHttpVersionHttp11,
+                    Version::HTTP_10 => PlamoHttpVersion::PlamoHttpVersionHttp10,
+                    Version::HTTP_09 => PlamoHttpVersion::PlamoHttpVersionHttp09,
                 };
 
                 let monster_engine_server = Arc::clone(&monster_engine_server);
@@ -45,7 +45,7 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
                     let plamo_byte_array = unsafe { plamo_byte_array_new(body.as_ptr(), body.len()) };
                     let plamo_http_query = query(uri.query());
                     let plamo_http_header = header(&headers);
-                    let plamo_request = unsafe { plamo_request_new(plamo_http_method.as_ptr(), scheme, path.as_ptr(), version, plamo_http_query, plamo_http_header, plamo_byte_array) };
+                    let plamo_request = unsafe { plamo_request_new(scheme, version, plamo_http_method.as_ptr(), path.as_ptr(), plamo_http_query, plamo_http_header, plamo_byte_array) };
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server.app.as_ref(), plamo_request) };
                     Ok(
                         Response::builder()
