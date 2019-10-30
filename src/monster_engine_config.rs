@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint};
 
 #[repr(C)]
@@ -13,7 +13,7 @@ pub extern fn monster_engine_config_new(bind: *const c_char, workers: c_uint) ->
         Box::into_raw(
             Box::new(
                 MonsterEngineConfig {
-                    bind: CString::from_raw(bind as *mut c_char),
+                    bind: CStr::from_ptr(bind).to_owned(),
                     workers: workers,
                 }
             )
