@@ -1,6 +1,7 @@
 use crate::monster_engine_config::MonsterEngineConfig;
 use hyper::{Body, Request, Response, Server, Version};
 use hyper::header::{HeaderMap, HeaderValue};
+use hyper::http::method::Method;
 use hyper::http::uri::Scheme;
 use hyper::service::service_fn;
 use hyper::rt::{self, Future, Stream};
@@ -40,12 +41,24 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
 
                 let monster_engine_server = Arc::clone(&monster_engine_server);
 
-                let plamo_http_method = CString::new(request.method().as_str()).unwrap();
+                let plamo_http_method = match request.method() {
+                    &Method::GET => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_GET },
+                    &Method::POST => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_POST },
+                    &Method::PUT => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_PUT },
+                    &Method::DELETE => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_DELETE },
+                    &Method::HEAD => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_HEAD },
+                    &Method::CONNECT => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_CONNECT },
+                    &Method::OPTIONS => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_OPTIONS },
+                    &Method::TRACE => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_TRACE },
+                    &Method::PATCH => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_PATCH },
+                    other => PlamoHttpMethod { undefined_http_method: CString::new(other.as_str()).unwrap().into_raw() },
+                };
+
                 let fut = request.into_body().concat2().and_then(move |body|{
                     let plamo_byte_array = unsafe { plamo_byte_array_new(body.as_ptr(), body.len()) };
                     let plamo_http_query = query(uri.query());
                     let plamo_http_header = header(&headers);
-                    let plamo_request = unsafe { plamo_request_new(scheme, version, plamo_http_method.as_ptr(), path.as_ptr(), plamo_http_query, plamo_http_header, plamo_byte_array) };
+                    let plamo_request = unsafe { plamo_request_new(scheme, version, plamo_http_method, path.as_ptr(), plamo_http_query, plamo_http_header, plamo_byte_array) };
                     let plamo_response = unsafe { plamo_app_execute(monster_engine_server.app.as_ref(), plamo_request) };
                     Ok(
                         Response::builder()
