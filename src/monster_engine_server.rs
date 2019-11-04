@@ -7,6 +7,7 @@ use hyper::service::service_fn;
 use hyper::rt::{self, Future, Stream};
 use plamo::*;
 use std::ffi::CString;
+use std::net::TcpListener;
 use std::ptr::NonNull;
 use std::slice;
 use std::sync::Arc;
@@ -22,9 +23,19 @@ unsafe impl Sync for MonsterEngineServer {}
 #[no_mangle]
 pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut MonsterEngineConfig) {
     let monster_engine_server = Arc::new(MonsterEngineServer { app: NonNull::new(app).unwrap(), config: NonNull::new(config).unwrap() });
-    let addr = unsafe { (monster_engine_server.config.as_ref()).bind.to_str().unwrap().parse().unwrap() };
+    let addr = unsafe { (monster_engine_server.config.as_ref()).bind.to_string_lossy().into_owned() };
+    let tcp_listener = TcpListener::bind(addr).unwrap();
+    let master_pid = unsafe { libc::getpid() };
 
-    let server = Server::bind(&addr)
+    unsafe {
+        for _ in 0..(*config).workers {
+            if libc::getpid() == master_pid {
+                libc::fork();
+            }
+        }
+    }
+
+    let server = Server::from_tcp(tcp_listener).unwrap()
         .serve(move || {
             let monster_engine_server = Arc::clone(&monster_engine_server);
             service_fn(move |request: Request<Body>| {
@@ -73,7 +84,11 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
         })
         .map_err(|e| eprintln!("server error: {}", e));
 
-    rt::run(server);
+    if unsafe { libc::getpid() } == master_pid {
+        loop {}
+    } else {
+        rt::run(server);
+    }
 }
 
 fn query(query: Option<&str>) -> *mut PlamoHttpQuery {

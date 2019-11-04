@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <plamo.h>
+#include <libplamo.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -10,6 +10,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 hyper = "0.12.20"
+libc = "0.2.65"
 plamo = { path = "../plamo-rs" }
 
 [[example]]
