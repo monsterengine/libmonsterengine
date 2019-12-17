@@ -2,6 +2,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint};
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct MonsterEngineConfig {
     pub bind: CString,
     pub workers: c_uint,

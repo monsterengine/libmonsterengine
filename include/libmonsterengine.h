@@ -11,7 +11,10 @@ extern "C" {
   typedef struct MonsterEngineConfig MonsterEngineConfig;
   MonsterEngineConfig* monster_engine_config_new(char *bind, unsigned int workers);
   void monster_engine_config_destroy(MonsterEngineConfig *monster_engine_config);
-  void monster_engine_server_start(PlamoApp *app, MonsterEngineConfig *config);
+  typedef struct MonsterEngineServer MonsterEngineServer;
+  MonsterEngineServer* monster_engine_server_new(PlamoApp *app, MonsterEngineConfig *config);
+  void monster_engine_server_destroy(MonsterEngineServer *monster_engine_server);
+  void monster_engine_server_start(const MonsterEngineServer *monster_engine_server);
 
 #ifdef __cplusplus
 }

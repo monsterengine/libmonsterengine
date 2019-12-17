@@ -12,32 +12,41 @@ use std::ptr::NonNull;
 use std::slice;
 use std::sync::Arc;
 
-struct MonsterEngineServer {
+pub struct MonsterEngineServer {
     app: NonNull<PlamoApp>,
-    config: NonNull<MonsterEngineConfig>,
+    tcp_listener: TcpListener,
 }
 
-unsafe impl Send for MonsterEngineServer {}
-unsafe impl Sync for MonsterEngineServer {}
+pub struct PlamoAppWrapper(NonNull<PlamoApp>);
+
+unsafe impl Send for PlamoAppWrapper {}
+unsafe impl Sync for PlamoAppWrapper {}
 
 #[no_mangle]
-pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut MonsterEngineConfig) {
-    let monster_engine_server = Arc::new(MonsterEngineServer { app: NonNull::new(app).unwrap(), config: NonNull::new(config).unwrap() });
-    let addr = unsafe { (monster_engine_server.config.as_ref()).bind.to_string_lossy().into_owned() };
-    let tcp_listener = TcpListener::bind(addr).unwrap();
-    let master_pid = unsafe { libc::getpid() };
+pub extern fn monster_engine_server_new(app: *mut PlamoApp, config: *mut MonsterEngineConfig) -> *mut MonsterEngineServer {
+    let tcp_listener = unsafe { TcpListener::bind((*config).bind.to_string_lossy().into_owned()).unwrap() };
+    Box::into_raw(
+        Box::new(
+            MonsterEngineServer { app: NonNull::new(app).unwrap(), tcp_listener }
+        )
+    )
+}
 
+#[no_mangle]
+pub extern fn monster_engine_server_destroy(monster_engine_server: *mut MonsterEngineServer) {
     unsafe {
-        for _ in 0..(*config).workers {
-            if libc::getpid() == master_pid {
-                libc::fork();
-            }
-        }
+       drop(Box::from_raw(monster_engine_server));
     }
+}
+
+#[no_mangle]
+pub extern fn monster_engine_server_start(monster_engine_server: *const MonsterEngineServer) {
+    let plamo_app_wrapper = unsafe { Arc::new(PlamoAppWrapper((*monster_engine_server).app.clone())) };
+    let tcp_listener = unsafe { (*monster_engine_server).tcp_listener.try_clone().unwrap() };
 
     let server = Server::from_tcp(tcp_listener).unwrap()
         .serve(move || {
-            let monster_engine_server = Arc::clone(&monster_engine_server);
+            let plamo_app_wrapper = Arc::clone(&plamo_app_wrapper);
             service_fn(move |request: Request<Body>| {
                 let uri = request.uri().clone();
                 let scheme = uri.scheme_part().map_or(PlamoScheme::PlamoSchemeHttp, |scheme| if scheme == &Scheme::HTTP { PlamoScheme::PlamoSchemeHttp } else { PlamoScheme::PlamoSchemeHttps });
@@ -50,7 +59,7 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
                     Version::HTTP_09 => PlamoHttpVersion::PlamoHttpVersionHttp09,
                 };
 
-                let monster_engine_server = Arc::clone(&monster_engine_server);
+                let plamo_app_wrapper = Arc::clone(&plamo_app_wrapper);
 
                 let plamo_http_method = match request.method() {
                     &Method::GET => PlamoHttpMethod { defined_http_method: PLAMO_HTTP_METHOD_GET },
@@ -70,7 +79,7 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
                     let plamo_http_query = query(uri.query());
                     let plamo_http_header = header(&headers);
                     let plamo_request = unsafe { plamo_request_new(scheme, version, plamo_http_method, path.as_ptr(), plamo_http_query, plamo_http_header, plamo_byte_array) };
-                    let plamo_response = unsafe { plamo_app_execute(monster_engine_server.app.as_ref(), plamo_request) };
+                    let plamo_response = unsafe { plamo_app_execute(plamo_app_wrapper.0.as_ref(), plamo_request) };
                     Ok(
                         Response::builder()
                             .status(unsafe { (*plamo_response).status_code as u16 })
@@ -84,11 +93,7 @@ pub extern fn monster_engine_server_start(app: *mut PlamoApp, config: *mut Monst
         })
         .map_err(|e| eprintln!("server error: {}", e));
 
-    if unsafe { libc::getpid() } == master_pid {
-        loop {}
-    } else {
-        rt::run(server);
-    }
+    rt::run(server);
 }
 
 fn query(query: Option<&str>) -> *mut PlamoHttpQuery {

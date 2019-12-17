@@ -1,5 +1,5 @@
 use monsterengine::monster_engine_config::monster_engine_config_new;
-use monsterengine::monster_engine_server::monster_engine_server_start;
+use monsterengine::monster_engine_server::*;
 use plamo::*;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_void;
@@ -23,5 +23,6 @@ fn main() {
     let app = unsafe { plamo_app_new() };
     let middleware = unsafe { plamo_middleware_new(std::ptr::null(), Some(callback)) };
     unsafe { plamo_app_add_middleware(app, middleware); }
-    monster_engine_server_start(app, config);
+    let monster_engine_server = monster_engine_server_new(app, config);
+    monster_engine_server_start(monster_engine_server);
 }
