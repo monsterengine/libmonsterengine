@@ -9,8 +9,9 @@ name = "monsterengine"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-hyper = "0.12.35"
+hyper = "0.13.1"
 plamo = { path = "../plamo-rs" }
+tokio = "0.2.5"
 
 [[example]]
 name = "basic"
