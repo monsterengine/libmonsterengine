@@ -10,8 +10,11 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 hyper = "0.13.1"
-plamo = { path = "../plamo-rs" }
+plamo = "0.3.0"
 tokio = "0.2.5"
+
+[profile.release]
+lto = true
 
 [[example]]
 name = "basic"
@@ -20,6 +23,3 @@ path = "examples/basic.rs"
 [[example]]
 name = "benchmark"
 path = "examples/benchmark.rs"
-
-[profile.release]
-lto = true
