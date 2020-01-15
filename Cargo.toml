@@ -2,6 +2,12 @@
 name = "libmonsterengine"
 version = "0.1.0"
 authors = ["Shogo Otake <shogo.otake@gmail.com>"]
+license = "MIT"
+description = "MonsterEngine is a web server which is desinged for Plamo apps and can be used from various programming languages."
+repository = "https://github.com/monsterengine/libmonsterengine"
+readme = "README.md"
+keywords = ["MonsterEngine", "Plamo"]
+categories = ["web-programming"]
 edition = "2018"
 
 [lib]
